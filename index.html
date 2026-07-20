@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="bn">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Direct Ping - Private Duo Chat</title>
+    <!-- PeerJS WebRTC Library for P2P connection -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { background-color: #0f172a; color: #f8fafc; display: flex; justify-content: center; align-items: center; min-height: 100vh; padding: 15px; }
+
+        /* App Main Container */
+        .app-card { background: #1e293b; border-radius: 16px; width: 100%; max-width: 420px; height: 620px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); border: 1px solid #334155; overflow: hidden; display: flex; flex-direction: column; position: relative; }
+
+        .screen { display: none; flex-direction: column; height: 100%; width: 100%; }
+        .screen.active { display: flex; }
+
+        /* SCREEN 1: LOGIN */
+        .login-box { padding: 40px 25px; text-align: center; justify-content: center; height: 100%; }
+        .login-box h2 { color: #38bdf8; margin-bottom: 10px; font-size: 24px; }
+        .login-box p { color: #94a3b8; font-size: 14px; margin-bottom: 25px; }
+        .input-group { margin-bottom: 15px; text-align: left; }
+        .input-group label { display: block; font-size: 13px; color: #cbd5e1; margin-bottom: 5px; }
+        .input-group input { width: 100%; padding: 12px; background: #0f172a; border: 1px solid #475569; color: white; border-radius: 8px; outline: none; }
+        .btn { width: 100%; padding: 12px; background: linear-gradient(135deg, #0284c7, #2563eb); color: white; border: none; border-radius: 8px; font-weight: bold; cursor: pointer; font-size: 15px; margin-top: 10px; }
+        .btn:hover { opacity: 0.9; }
+
+        /* SCREEN 2: HOME (USER LIST & CONNECTION) */
+        .home-header { background: #0f172a; padding: 15px; border-bottom: 1px solid #334155; display: flex; justify-content: space-between; align-items: center; }
+        .user-info { display: flex; align-items: center; gap: 10px; }
+        .avatar { width: 36px; height: 36px; background: #0284c7; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; color: white; }
+        .connect-box { padding: 15px; background: #0b1329; border-bottom: 1px solid #334155; }
+        .my-id-text { font-size: 12px; color: #94a3b8; margin-bottom: 8px; }
+        .my-id-text span { color: #22c55e; font-weight: bold; font-family: monospace; font-size: 13px; }
+        .peer-input-flex { display: flex; gap: 8px; }
+        .peer-input-flex input { flex: 1; padding: 8px 12px; background: #1e293b; border: 1px solid #475569; color: white; border-radius: 6px; font-size: 13px; outline: none; }
+        .peer-input-flex button { padding: 8px 15px; background: #38bdf8; color: #0f172a; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        
+        .chat-list { flex: 1; overflow-y: auto; padding: 10px; }
+        .chat-item { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: 10px; background: #0f172a; margin-bottom: 8px; cursor: pointer; border: 1px solid transparent; transition: 0.2s; }
+        .chat-item:hover { border-color: #38bdf8; }
+        .chat-details h4 { font-size: 15px; color: #f8fafc; }
+        .chat-details p { font-size: 12px; color: #22c55e; margin-top: 2px; }
+
+        /* SCREEN 3: CHAT BOX */
+        .chat-header { background: #0f172a; padding: 12px 15px; border-bottom: 1px solid #334155; display: flex; align-items: center; gap: 12px; }
+        .back-btn { background: none; border: none; color: #38bdf8; font-size: 20px; cursor: pointer; font-weight: bold; }
+        .chat-body { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; background: #0b1329; }
+        .message { max-width: 80%; padding: 10px 12px; border-radius: 12px; font-size: 14px; line-height: 1.4; word-wrap: break-word; }
+        .message.sent { background: #0284c7; color: white; align-self: flex-end; border-bottom-right-radius: 2px; }
+        .message.received { background: #334155; color: #f8fafc; align-self: flex-start; border-bottom-left-radius: 2px; }
+        .message media-container { width: 100%; }
+        .message img, .message video { max-width: 100%; border-radius: 8px; margin-top: 5px; display: block; }
+        .message audio { width: 100%; margin-top: 5px; }
+
+        /* Input Controls */
+        .chat-footer { padding: 10px; background: #1e293b; border-top: 1px solid #334155; display: flex; flex-direction: column; gap: 8px; }
+        .input-row { display: flex; gap: 8px; align-items: center; }
+        .chat-footer input[type="text"] { flex: 1; padding: 10px; background: #0f172a; border: 1px solid #475569; color: white; border-radius: 8px; outline: none; }
+        .media-btn { background: #334155; color: #38bdf8; border: 1px solid #475569; padding: 9px; border-radius: 8px; cursor: pointer; display: flex; align-items: center; justify-content: center; }
+        .file-preview { font-size: 11px; color: #cbd5e1; background: #0f172a; padding: 4px 8px; border-radius: 4px; display: none; justify-content: space-between; align-items: center; }
+    </style>
+</head>
+<body>
+
+<div class="app-card">
+    
+    <!-- পেজ ১: লগইন স্ক্রিন -->
+    <div id="screen-login" class="screen active">
+        <div class="login-box">
+            <h2>⚡ Direct Ping</h2>
+            <p>প্রবেশ করতে আপনার নামটি লিখুন</p>
+            <div class="input-group">
+                <label for="username">আপনার নাম:</label>
+                <input type="text" id="username" placeholder="যেমন: নাবিল">
+            </div>
+            <button class="btn" onclick="handleLogin()">লগইন করুন</button>
+        </div>
+    </div>
+
+    <!-- পেজ ২: হোম স্ক্রিন (ইউজার ও ইনবক্স) -->
+    <div id="screen-home" class="screen">
+        <div class="home-header">
+            <div class="user-info">
+                <div class="avatar" id="my-avatar">U</div>
+                <div style="font-weight: bold;" id="my-name-display">User</div>
+            </div>
+        </div>
+
+        <div class="connect-box">
+            <div class="my-id-text">আপনার অনলাইন ID: <span id="my-id">তৈরি হচ্ছে...</span></div>
+            <div class="peer-input-flex">
+                <input type="text" id="peer-id-input" placeholder="অপর পক্ষের ID লিখুন">
+                <button onclick="connectToPeer()">কানেক্ট</button>
+            </div>
+        </div>
+
+        <div class="chat-list" id="chatList">
+            <div style="text-align: center; color: #64748b; font-size: 13px; margin-top: 30px;">
+                উপরে অন্যজনের ID বসিয়ে 'কানেক্ট' চাপুন চ্যাট শুরু করার জন্য।
+            </div>
+        </div>
+    </div>
+
+    <!-- পেজ ৩: চ্যাট স্ক্রিন -->
+    <div id="screen-chat" class="screen">
+        <div class="chat-header">
+            <button class="back-btn" onclick="showScreen('screen-home')">←</button>
+            <div class="avatar" id="active-chat-avatar">?</div>
+            <div>
+                <h4 id="active-chat-name">বন্ধু</h4>
+                <p style="font-size: 11px; color: #22c55e;">অনলাইন</p>
+            </div>
+        </div>
+
+        <div class="chat-body" id="chatBody"></div>
+
+        <div class="chat-footer">
+            <div class="file-preview" id="filePreview">
+                <span id="fileName">File.png</span>
+                <span style="color:#f43f5e; cursor:pointer;" onclick="clearFile()">✖</span>
+            </div>
+            <div class="input-row">
+                <label class="media-btn" title="ছবি/ভিডিও/অডিও পাঠান">
+                    📎
+                    <input type="file" id="fileInput" accept="image/*,video/*,audio/*" style="display:none;" onchange="handleFileSelect(event)">
+                </label>
+                <input type="text" id="messageInput" placeholder="মেসেজ লিখুন..." onkeypress="handleKeyPress(event)">
+                <button class="btn" style="width: auto; padding: 10px 15px; margin: 0;" onclick="sendData()">পাঠান</button>
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<script>
+    let peer = null;
+    let conn = null;
+    let myName = "";
+    let selectedFile = null;
+
+    // স্ক্রিন পরিবর্তন করার ফাংশন
+    function showScreen(screenId) {
+        document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+        document.getElementById(screenId).classList.add('active');
+    }
+
+    // ১. লগইন হ্যান্ডলার
+    function handleLogin() {
+        const nameInput = document.getElementById('username').value.trim();
+        if (!nameInput) {
+            alert("দয়া করে একটি নাম দিন!");
+            return;
+        }
+        myName = nameInput;
+        document.getElementById('my-name-display').innerText = myName;
+        document.getElementById('my-avatar').innerText = myName.charAt(0).toUpperCase();
+
+        // PeerJS সংযোগ শুরু করা
+        initPeer();
+        showScreen('screen-home');
+    }
+
+    // WebRTC PeerJS ইনিশিয়ালাইজ
+    function initPeer() {
+        peer = new Peer();
+
+        peer.on('open', function(id) {
+            document.getElementById('my-id').innerText = id;
+        });
+
+        // অন্য কেউ কানেক্ট করলে রিসিভ করার কোড
+        peer.on('connection', function(connection) {
+            conn = connection;
+            setupConnection();
+        });
+    }
+
+    // ২. হোম স্ক্রিন থেকে অন্যজনকে কানেক্ট করা
+    function connectToPeer() {
+        const targetId = document.getElementById('peer-id-input').value.trim();
+        if (!targetId) {
+            alert("আইডি ফাঁকা রাখা যাবে না!");
+            return;
+        }
+        conn = peer.connect(targetId, { metadata: { senderName: myName } });
+        setupConnection();
+    }
+
+    // কানেকশন সেটআপ এবং ইনবক্স তৈরি
+    function setupConnection() {
+        conn.on('open', function() {
+            let partnerName = (conn.metadata && conn.metadata.senderName) ? conn.metadata.senderName : "কানেক্টেড ইউজার";
+            
+            // হোম স্ক্রিনে ইউজারের নাম ইনবক্স হিসেবে তৈরি করা
+            const chatList = document.getElementById('chatList');
+            chatList.innerHTML = `
+                <div class="chat-item" onclick="openChat('${partnerName}')">
+                    <div class="avatar">${partnerName.charAt(0).toUpperCase()}</div>
+                    <div class="chat-details">
+                        <h4>${partnerName}</h4>
+                        <p>মেসেজ করার জন্য ক্লিক করুন</p>
+                    </div>
+                </div>
+            `;
+
+            openChat(partnerName);
+        });
+
+        // মেসেজ বা মিডিয়া ফাইল গ্রহণ করা
+        conn.on('data', function(data) {
+            appendMessage(data, 'received');
+        });
+    }
+
+    // ৩. চ্যাট পেজ ওপেন
+    function openChat(partnerName) {
+        document.getElementById('active-chat-name').innerText = partnerName;
+        document.getElementById('active-chat-avatar').innerText = partnerName.charAt(0).toUpperCase();
+        showScreen('screen-chat');
+    }
+
+    // ফাইল সিলেক্ট করা
+    function handleFileSelect(e) {
+        const file = e.target.files[0];
+        if (file) {
+            selectedFile = file;
+            document.getElementById('fileName').innerText = file.name;
+            document.getElementById('filePreview').style.display = 'flex';
+        }
+    }
+
+    function clearFile() {
+        selectedFile = null;
+        document.getElementById('fileInput').value = '';
+        document.getElementById('filePreview').style.display = 'none';
+    }
+
+    // মেসেজ ও মিডিয়া ফাইল পাঠানো
+    function sendData() {
+        const textInput = document.getElementById('messageInput');
+        const text = textInput.value.trim();
+
+        if (!conn) {
+            alert("কানেকশন সক্রিয় নেই!");
+            return;
+        }
+
+        // যদি কোনো ফাইল থাকে (ছবি/ভিডিও/অডিও)
+        if (selectedFile) {
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const fileData = {
+                    fileType: selectedFile.type,
+                    fileName: selectedFile.name,
+                    fileBuffer: event.target.result,
+                    text: text
+                };
+                conn.send(fileData);
+                appendMessage(fileData, 'sent');
+                clearFile();
+                textInput.value = '';
+            };
+            reader.readAsDataURL(selectedFile);
+        } 
+        // যদি শুধুমাত্র টেক্সট মেসেজ থাকে
+        else if (text !== '') {
+            const msgData = { text: text };
+            conn.send(msgData);
+            appendMessage(msgData, 'sent');
+            textInput.value = '';
+        }
+    }
+
+    // স্ক্রিনে মেসেজ দেখানো
+    function appendMessage(data, type) {
+        const chatBody = document.getElementById('chatBody');
+        const msgDiv = document.createElement('div');
+        msgDiv.className = `message ${type}`;
+
+        let content = '';
+
+        // ছবির জন্য
+        if (data.fileType && data.fileType.startsWith('image/')) {
+            content += `<img src="${data.fileBuffer}" alt="Image">`;
+        } 
+        // ভিডিওর জন্য
+        else if (data.fileType && data.fileType.startsWith('video/')) {
+            content += `<video controls src="${data.fileBuffer}"></video>`;
+        } 
+        // অডিওর জন্য
+        else if (data.fileType && data.fileType.startsWith('audio/')) {
+            content += `<audio controls src="${data.fileBuffer}"></audio>`;
+        }
+
+        // টেক্সট থাকলে নিচে যুক্ত হবে
+        if (data.text) {
+            content += `<div>${data.text}</div>`;
+        }
+
+        msgDiv.innerHTML = content;
+        chatBody.appendChild(msgDiv);
+        chatBody.scrollTop = chatBody.scrollHeight;
+    }
+
+    function handleKeyPress(e) {
+        if (e.key === 'Enter') sendData();
+    }
+</script>
+
+</body>
+</html>
